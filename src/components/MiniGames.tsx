@@ -63,14 +63,19 @@ export const ClickerGame: React.FC<GameProps> = ({ config, onGameOver }) => {
         });
       }
 
-      // Update & Draw Entities
-      gameStateRef.current.entities.forEach((ent, index) => {
+      // 1. Update Entities
+      gameStateRef.current.entities.forEach((ent) => {
         // Grow effect
         if (ent.r < 40) ent.r += 2 * speedMultiplier;
-
         // Decay life
         ent.life -= 1 * speedMultiplier;
+      });
 
+      // 2. Remove dead entities (Filter method is safer than splice inside forEach)
+      gameStateRef.current.entities = gameStateRef.current.entities.filter(ent => ent.life > 0);
+
+      // 3. Draw Entities
+      gameStateRef.current.entities.forEach((ent) => {
         // Draw Circle
         ctx.beginPath();
         ctx.arc(ent.x, ent.y, ent.r, 0, Math.PI * 2);
@@ -85,11 +90,6 @@ export const ClickerGame: React.FC<GameProps> = ({ config, onGameOver }) => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(ent.asset, ent.x, ent.y);
-
-        // Remove dead entities
-        if (ent.life <= 0) {
-          gameStateRef.current.entities.splice(index, 1);
-        }
       });
 
       animationFrameId = requestAnimationFrame(render);
@@ -136,16 +136,22 @@ export const ClickerGame: React.FC<GameProps> = ({ config, onGameOver }) => {
     const x = clientX - rect.left;
     const y = clientY - rect.top;
 
-    gameStateRef.current.entities.forEach((ent, index) => {
+    // Check clicks
+    // We iterate backwards to prioritize clicking items 'on top'
+    let hit = false;
+    for (let i = gameStateRef.current.entities.length - 1; i >= 0; i--) {
+      const ent = gameStateRef.current.entities[i];
       const dist = Math.sqrt((x - ent.x) ** 2 + (y - ent.y) ** 2);
-      if (dist < ent.r) {
+      
+      if (!hit && dist < ent.r) {
         // Hit!
         gameStateRef.current.score += 10;
         setScore(gameStateRef.current.score);
-        gameStateRef.current.entities.splice(index, 1);
-        // Add visual feedback? (Simulated by removing immediately)
+        // Remove immediately
+        gameStateRef.current.entities.splice(i, 1);
+        hit = true; // Only click one at a time
       }
-    });
+    }
   };
 
   return (
@@ -218,8 +224,10 @@ export const CatcherGame: React.FC<GameProps> = ({ config, onGameOver }) => {
             if (gameStateRef.current.playerX > canvas.width - playerW/2) gameStateRef.current.playerX = canvas.width - playerW/2;
 
             ctx.fillStyle = config.theme.primary;
-            if (ctx.roundRect) {
-              ctx.roundRect(gameStateRef.current.playerX - playerW / 2, playerY, playerW, playerH, 10);
+            
+            // Use roundRect if available, otherwise fillRect
+            if (typeof (ctx as any).roundRect === 'function') {
+              (ctx as any).roundRect(gameStateRef.current.playerX - playerW / 2, playerY, playerW, playerH, 10);
             } else {
               ctx.fillRect(gameStateRef.current.playerX - playerW / 2, playerY, playerW, playerH);
             }
